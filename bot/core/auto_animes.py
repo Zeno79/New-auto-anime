@@ -24,20 +24,16 @@ btn_formatter = {
     '360': '𝟯𝟲𝟬𝗽'
 }
 
-async def fetch_animes():
-    await rep.report("Fetch Animes Started !!", "info")
-    while True:
-        await asleep(60)  # Pause for a while before fetching again
-        if ani_cache['fetch_animes']:
-            messages = []
-            async for message in bot.get_chat_history(chat_id=Var.SOURCE_CHANNEL):
-                if message.document:  # Ensure the message has a document (file)
-                    messages.append(message)
-            messages.reverse()  # Reverse the order of messages
-            for message in messages:
-                name = message.document.file_name
-                file_id = message.document.file_id
-                bot_loop.create_task(get_animes(name, file_id))
+@app.on_message(filters.chat(Var.SOURCE_CHANNEL) & (filters.document | filters.video))
+async def handle_new_media(client, message):
+    if message.document:
+        name = message.document.file_name
+        file_id = message.document.file_id
+    elif message.video:
+        name = message.video.file_name if message.video.file_name else "Unnamed Video"
+        file_id = message.video.file_id
+
+    bot_loop.create_task(get_animes(name, file_id))
                 
 async def get_animes(name, file_id, force=False):
     try:
