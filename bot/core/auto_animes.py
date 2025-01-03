@@ -29,7 +29,7 @@ async def fetch_animes():
     while True:
         await asleep(60)
         if ani_cache['fetch_animes']:
-            async for message in bot.get_chat_history(chat_id=Var.SOURCE_CHANNEL, reverse=True):
+            async for message in bot.get_chat_history(chat_id=Var.SOURCE_CHANNEL, reverse():
                 if message.document:  # Ensure the message has a document (file)
                     name = message.document.file_name
                     file_id = message.document.file_id
