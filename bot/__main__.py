@@ -53,20 +53,21 @@ async def queue_loop():
         await asleep(10)
 
 async def main():
+    """Main bot loop."""
     sch.add_job(upcoming_animes, "cron", hour=0, minute=30)
     await bot.start()
     await restart()
-    LOGS.info('Auto Anime Bot Started!')
+    LOGS.info("Auto Anime Bot Started!")
     sch.start()
     bot_loop.create_task(queue_loop())
-    await handle_new_media()
     await idle()
-    LOGS.info('Auto Anime Bot Stopped!')
+    LOGS.info("Auto Anime Bot Stopped!")
     await bot.stop()
-    for task in all_tasks:
+    tasks = [task for task in all_tasks() if task is not asyncio.current_task()]
+    for task in tasks:
         task.cancel()
     await clean_up()
-    LOGS.info('Finished AutoCleanUp !!')
+    LOGS.info("Finished AutoCleanUp!")
     
 if __name__ == '__main__':
     bot_loop.run_until_complete(main())
