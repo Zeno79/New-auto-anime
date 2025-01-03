@@ -25,7 +25,7 @@ btn_formatter = {
     '360': '𝟯𝟲𝟬𝗽'
 }
 
-@app.on_message(filters.chat(Var.SOURCE_CHANNEL) & (filters.document | filters.video))
+@bot.on_message(filters.chat(Var.SOURCE_CHANNEL) & (filters.document | filters.video))
 async def handle_new_media(client, message):
     if message.document:
         name = message.document.file_name
