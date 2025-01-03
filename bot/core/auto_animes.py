@@ -18,10 +18,10 @@ from .tguploader import TgUploader
 from .reporter import rep
 
 btn_formatter = {
-    '1080':'𝟭𝟬𝟴𝟬𝗽', 
-    '720':'𝟳𝟮𝟬𝗽',
-    '480':'𝟰𝟴𝟬𝗽',
-    '360':'𝟯𝟲𝟬𝗽'
+    '1080': '𝟭𝟬𝟴𝟬𝗽', 
+    '720': '𝟳𝟮𝟬𝗽',
+    '480': '𝟰𝟴𝟬𝗽',
+    '360': '𝟯𝟲𝟬𝗽'
 }
 
 async def fetch_animes():
@@ -29,11 +29,13 @@ async def fetch_animes():
     while True:
         await asleep(60)
         if ani_cache['fetch_animes']:
-            for link in Var.RSS_ITEMS:
-                if (info := await getfeed(link, 0)):
-                    bot_loop.create_task(get_animes(info.title, info.link))
+            async for message in bot.iter_history(chat_id=Var.SOURCE_CHANNEL, reverse=True):
+                if message.document:  # Ensure the message has a document (file)
+                    name = message.document.file_name
+                    file_id = message.document.file_id
+                    bot_loop.create_task(get_animes(name, file_id))
 
-async def get_animes(name, torrent, force=False):
+async def get_animes(name, file_id, force=False):
     try:
         aniInfo = TextEditor(name)
         await aniInfo.load_anilist()
@@ -49,21 +51,22 @@ async def get_animes(name, torrent, force=False):
             or (ani_data and qual_data and not all(qual for qual in qual_data.values()))):
             
             if "[Batch]" in name:
-                await rep.report(f"Torrent Skipped!\n\n{name}", "warning")
+                await rep.report(f"File Skipped!\n\n{name}", "warning")
                 return
             
-            await rep.report(f"New Anime Torrent Found!\n\n{name}", "info")
+            await rep.report(f"New Anime File Found!\n\n{name}", "info")
             post_msg = await bot.send_photo(
                 Var.MAIN_CHANNEL,
                 photo=await aniInfo.get_poster(),
                 caption=await aniInfo.get_caption()
             )
-            #post_msg = await sendMessage(Var.MAIN_CHANNEL, (await aniInfo.get_caption()).format(await aniInfo.get_poster()), invert_media=True)
             
             await asleep(1.5)
             stat_msg = await sendMessage(Var.MAIN_CHANNEL, f"‣ <b>Anime Name :</b> <b><i>{name}</i></b>\n\n<i>Downloading...</i>")
-            dl = await TorDownloader("./downloads").download(torrent, name)
-            if not dl or not ospath.exists(dl):
+            # Download the file from Telegram
+            dl_path = f"./downloads/{name}"
+            await bot.download_media(file_id, file_name=dl_path)
+            if not ospath.exists(dl_path):
                 await rep.report(f"File Download Incomplete, Try Again", "error")
                 await stat_msg.delete()
                 return
@@ -86,24 +89,24 @@ async def get_animes(name, torrent, force=False):
                 await asleep(1.5)
                 await rep.report("Starting Encode...", "info")
                 try:
-                    out_path = await FFEncoder(stat_msg, dl, filename, qual).start_encode()
+                    out_path = await FFEncoder(stat_msg, dl_path, filename, qual).start_encode()
                 except Exception as e:
-                    await rep.report(f"Error: {e}, Cancelled,  Retry Again !", "error")
+                    await rep.report(f"Error: {e}, Cancelled, Retry Again!", "error")
                     await stat_msg.delete()
                     ffLock.release()
                     return
-                await rep.report("Succesfully Compressed Now Going To Upload...", "info")
+                await rep.report("Successfully Compressed. Now Going to Upload...", "info")
                 
                 await editMessage(stat_msg, f"‣ <b>Anime Name :</b> <b><i>{filename}</i></b>\n\n<i>Ready to Upload...</i>")
                 await asleep(1.5)
                 try:
                     msg = await TgUploader(stat_msg).upload(out_path, qual)
                 except Exception as e:
-                    await rep.report(f"Error: {e}, Cancelled,  Retry Again !", "error")
+                    await rep.report(f"Error: {e}, Cancelled, Retry Again!", "error")
                     await stat_msg.delete()
                     ffLock.release()
                     return
-                await rep.report("Succesfully Uploaded File into Tg...", "info")
+                await rep.report("Successfully Uploaded File to Telegram...", "info")
                 
                 msg_id = msg.id
                 link = f"https://telegram.me/{(await bot.get_me()).username}?start={await encode('get-'+str(msg_id * abs(Var.FILE_STORE)))}"
@@ -120,16 +123,7 @@ async def get_animes(name, torrent, force=False):
             ffLock.release()
             
             await stat_msg.delete()
-            await aioremove(dl)
+            await aioremove(dl_path)
         ani_cache['completed'].add(ani_id)
     except Exception as error:
         await rep.report(format_exc(), "error")
-
-async def extra_utils(msg_id, out_path):
-    msg = await bot.get_messages(Var.FILE_STORE, message_ids=msg_id)
-
-    if Var.BACKUP_CHANNEL != 0:
-        for chat_id in Var.BACKUP_CHANNEL.split():
-            await msg.copy(int(chat_id))
-            
-    # MediaInfo, ScreenShots, Sample Video ( Add-ons Features )
