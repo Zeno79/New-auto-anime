@@ -27,14 +27,18 @@ btn_formatter = {
 async def fetch_animes():
     await rep.report("Fetch Animes Started !!", "info")
     while True:
-        await asleep(60)
+        await asleep(60)  # Pause for a while before fetching again
         if ani_cache['fetch_animes']:
-            async for message in bot.get_chat_history(chat_id=Var.SOURCE_CHANNEL, reverse()):
+            messages = []
+            async for message in bot.get_chat_history(chat_id=Var.SOURCE_CHANNEL):
                 if message.document:  # Ensure the message has a document (file)
-                    name = message.document.file_name
-                    file_id = message.document.file_id
-                    bot_loop.create_task(get_animes(name, file_id))
-
+                    messages.append(message)
+            messages.reverse()  # Reverse the order of messages
+            for message in messages:
+                name = message.document.file_name
+                file_id = message.document.file_id
+                bot_loop.create_task(get_animes(name, file_id))
+                
 async def get_animes(name, file_id, force=False):
     try:
         aniInfo = TextEditor(name)
