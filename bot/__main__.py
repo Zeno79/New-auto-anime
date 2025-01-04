@@ -7,7 +7,7 @@ from sys import executable
 from signal import SIGKILL
 
 from bot import bot, Var, bot_loop, sch, LOGS, ffQueue, ffLock, ffpids_cache, ff_queued
-from bot.core.auto_animes import handle_new_media
+from bot.core.auto_animes import fetch_animes
 from bot.core.func_utils import clean_up, new_task, editMessage
 from bot.modules.up_posts import upcoming_animes
 
@@ -53,21 +53,20 @@ async def queue_loop():
         await asleep(10)
 
 async def main():
-    """Main bot loop."""
     sch.add_job(upcoming_animes, "cron", hour=0, minute=30)
     await bot.start()
     await restart()
-    LOGS.info("Auto Anime Bot Started!")
+    LOGS.info('Auto Anime Bot Started!')
     sch.start()
     bot_loop.create_task(queue_loop())
+    await fetch_animes()
     await idle()
-    LOGS.info("Auto Anime Bot Stopped!")
+    LOGS.info('Auto Anime Bot Stopped!')
     await bot.stop()
-    tasks = [task for task in all_tasks() if task is not asyncio.current_task()]
-    for task in tasks:
+    for task in all_tasks:
         task.cancel()
     await clean_up()
-    LOGS.info("Finished AutoCleanUp!")
+    LOGS.info('Finished AutoCleanUp !!')
     
 if __name__ == '__main__':
     bot_loop.run_until_complete(main())
