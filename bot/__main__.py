@@ -1,5 +1,4 @@
-from asyncio import create_task, create_subprocess_exec, create_subprocess_shell, run as asyrun, all_tasks, gather, sleep as asleep
-from aiofiles import open as aiopen
+from asyncio import sleep as asleep, create_subprocess_exec, all_tasks, gather, run as asyrun
 from pyrogram import idle
 from pyrogram.filters import command, user
 from os import path as ospath, execl, kill
@@ -31,7 +30,8 @@ async def restart(client, message):
         await f.write(f"{rmessage.chat.id}\n{rmessage.id}\n")
     execl(executable, executable, "-m", "bot")
 
-async def restart():
+async def restart_bot():
+    """ Handle bot restart and send a message to the admin about restart. """
     if ospath.isfile(".restartmsg"):
         with open(".restartmsg") as f:
             chat_id, msg_id = map(int, f)
@@ -39,8 +39,9 @@ async def restart():
             await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text="<i>Restarted !</i>")
         except Exception as e:
             LOGS.error(e)
-            
+
 async def queue_loop():
+    """ Process the encoding queue. """
     LOGS.info("Queue Loop Started !!")
     while True:
         if not ffQueue.empty():
@@ -53,9 +54,10 @@ async def queue_loop():
         await asleep(10)
 
 async def main():
+    """ Main bot function to start the bot and handle all tasks. """
     sch.add_job(upcoming_animes, "cron", hour=0, minute=30)
     await bot.start()
-    await restart()
+    await restart_bot()
     LOGS.info('Auto Anime Bot Started!')
     sch.start()
     bot_loop.create_task(queue_loop())
@@ -67,6 +69,6 @@ async def main():
         task.cancel()
     await clean_up()
     LOGS.info('Finished AutoCleanUp !!')
-    
+
 if __name__ == '__main__':
     bot_loop.run_until_complete(main())
