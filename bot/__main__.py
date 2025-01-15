@@ -7,6 +7,7 @@ from sys import executable
 from signal import SIGKILL
 
 from bot import bot, Var, bot_loop, sch, LOGS, ffQueue, ffLock, ffpids_cache, ff_queued
+from bot.core.auto_animes import fetch_animes
 from bot.core.func_utils import clean_up, new_task, editMessage
 from bot.modules.up_posts import upcoming_animes
 
@@ -58,13 +59,14 @@ async def main():
     LOGS.info('Auto Anime Bot Started!')
     sch.start()
     bot_loop.create_task(queue_loop())
-    await idle()  # Wait for events (e.g., incoming messages)
+    await fetch_animes()
+    await idle()
     LOGS.info('Auto Anime Bot Stopped!')
     await bot.stop()
-    for task in all_tasks():
+    for task in all_tasks:
         task.cancel()
     await clean_up()
-    LOGS.info('Finished AutoCleanUp!')
+    LOGS.info('Finished AutoCleanUp !!')
     
 if __name__ == '__main__':
     bot_loop.run_until_complete(main())
