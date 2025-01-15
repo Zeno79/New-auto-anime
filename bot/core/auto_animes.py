@@ -1,21 +1,14 @@
-from asyncio import gather, create_task, sleep as asleep, Event
-from asyncio.subprocess import PIPE
-from os import path as ospath
-from aiofiles import open as aiopen
-from aiofiles.os import remove as aioremove
+from asyncio import sleep as asleep, Event
+from bot import bot, Var, ani_cache, ffQueue, ffLock, ff_queued
+from bot.core.func_utils import clean_up, sendMessage, editMessage
+from bot.core.text_utils import TextEditor
+from bot.core.ffencoder import FFEncoder
+from bot.core.tguploader import TgUploader
+from bot.core.reporter import rep
 from traceback import format_exc
-from base64 import urlsafe_b64encode
-from time import time
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from bot import bot, bot_loop, Var, ani_cache, ffQueue, ffLock, ff_queued
-from .database import db
-from .func_utils import encode, editMessage, sendMessage, convertBytes
-from .text_utils import TextEditor
-from .ffencoder import FFEncoder
-from .tguploader import TgUploader
-from .reporter import rep
-
+# Button formatter for video qualities
 btn_formatter = {
     '1080': '𝟭𝟬𝟴𝟬𝗽', 
     '720': '𝟳𝟮𝟬𝗽',
@@ -24,20 +17,23 @@ btn_formatter = {
 }
 
 async def process_telegram_file(file_id, chat_id):
+    """ Process a file from Telegram, encode it, and upload it back. """
     try:
         # Download file from Telegram
         msg = await bot.get_messages(chat_id, file_id)
         file_path = await bot.download_media(msg.document or msg.video)
 
-        # Start processing
-        aniInfo = TextEditor(file_path)
-        await aniInfo.load_anilist()
+        # Start processing the file (fetching anime details)
+        ani_info = TextEditor(file_path)
+        await ani_info.load_anilist()
         post_msg = await bot.send_photo(
             Var.MAIN_CHANNEL,
-            photo=await aniInfo.get_poster(),
-            caption=await aniInfo.get_caption()
+            photo=await ani_info.get_poster(),
+            caption=await ani_info.get_caption()
         )
         await asleep(1.5)
+        
+        # Status message indicating file is queued for encoding
         stat_msg = await sendMessage(
             Var.MAIN_CHANNEL, f"‣ <b>File Name:</b> <b><i>{file_path}</i></b>\n\n<i>Queued to Encode...</i>"
         )
@@ -54,7 +50,7 @@ async def process_telegram_file(file_id, chat_id):
         await ffLock.acquire()
         btns = []
         for qual in Var.QUALS:
-            filename = await aniInfo.get_upname(qual)
+            filename = await ani_info.get_upname(qual)
             await editMessage(stat_msg, f"‣ <b>File Name:</b> <b><i>{filename}</i></b>\n\n<i>Encoding...</i>")
             try:
                 out_path = await FFEncoder(stat_msg, file_path, filename, qual).start_encode()
@@ -89,9 +85,15 @@ async def process_telegram_file(file_id, chat_id):
         await rep.report(format_exc(), "error")
 
 async def fetch_animes():
+    """ Periodically fetch anime data and process tasks. """
     await rep.report("Fetch Animes Started !!", "info")
     while True:
-        await asleep(60)
+        await asleep(60)  # Wait 1 minute before checking for new tasks
         if ani_cache['fetch_animes']:
             for task in ani_cache['tasks']:
                 await process_telegram_file(task['file_id'], task['chat_id'])
+
+async def add_task(file_id, chat_id):
+    """ Add a new task to the task cache for processing. """
+    ani_cache['tasks'].append({'file_id': file_id, 'chat_id': chat_id})
+    await rep.report(f"Task added for file {file_id} in chat {chat_id}", "info")
